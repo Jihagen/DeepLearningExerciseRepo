@@ -1,9 +1,11 @@
 import os.path
 import json
-import scipy.misc
 import numpy as np
 import matplotlib.pyplot as plt
 import random
+from PIL import Image  # Added for image resizing
+import imageio  # Added for image reading
+from skimage.transform import resize  # Added for image resizing
 
 # In this exercise task you will implement an image generator. Generator objects in python are defined as having a next function.
 # This next function returns the next generated object. In our case it returns the input of a neural network each time it gets called.
@@ -29,8 +31,8 @@ class ImageGenerator:
         self.mirroring = mirroring
         self.shuffle = shuffle
         self.current_epoch_num = 0
-        self.current_index = None
-        
+        self.current_index = 0
+      
         # Load labels
         with open(self.label_path, 'r') as label_file:
             self.labels_dict = json.load(label_file)
@@ -45,7 +47,9 @@ class ImageGenerator:
         
 
     def next(self):
-
+        images = []
+        labels = []
+        
         for _ in range(self.batch_size):
             if self.current_index >= len(self.epoch_images):
                 # End of epoch: reset index and shuffle -> no batch is shown to the network twice within one epoch
@@ -58,9 +62,19 @@ class ImageGenerator:
             self.current_index += 1
 
             image_path = os.path.join(self.file_path, image_file)
-            image = scipy.misc.imread(image_path) 
-            image = scipy.misc.imresize(image, self.image_size) #resizing to desired image size
-            label = self.labels_dict[image_file]
+            
+            # Handle .npy files
+            if image_file.endswith('.npy'):
+                image = np.load(image_path)
+            else:
+                image = imageio.imread(image_path)  # For non-.npy files
+            
+            # Resize using skimage.transform.resize
+            image = resize(image, self.image_size, anti_aliasing=True)
+            
+            # Strip file extension to match the keys in labels_dict
+            file_key = os.path.splitext(image_file)[0]
+            label = self.labels_dict[file_key]
 
             images.append(image)
             labels.append(label)
@@ -71,14 +85,14 @@ class ImageGenerator:
         return images, labels
 
 
-    def augment(self,img):
+    def augment(self, img):
         # this function takes a single image as an input and performs a random transformation
         # (mirroring and/or rotation) on it and outputs the transformed image
         if self.mirroring and random.choice([True, False]):
-            image = np.fliplr(image)  # Randomly mirror the image
+            img = np.fliplr(img)  # Randomly mirror the image
         if self.rotation:
             angle = random.choice([0, 90, 180, 270])  # Randomly choose rotation angle
-            image = np.rot90(image, k=angle // 90)  # Rotate the image
+            img = np.rot90(img, k=angle // 90)  # Rotate the image
 
         return img
 
