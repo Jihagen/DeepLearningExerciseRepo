@@ -3,12 +3,13 @@ import json
 import scipy.misc
 import numpy as np
 import matplotlib.pyplot as plt
+import random
 
 # In this exercise task you will implement an image generator. Generator objects in python are defined as having a next function.
 # This next function returns the next generated object. In our case it returns the input of a neural network each time it gets called.
 # This input consists of a batch of images and its corresponding labels.
 class ImageGenerator:
-    def __init__(self, file_path, label_path, batch_size, image_size, rotation=False, mirroring=False, shuffle=False):
+    def __init__(self, file_path:str, label_path:str, batch_size:int, image_size:list, rotation=False, mirroring=False, shuffle=False):
         # Define all members of your generator class object as global members here.
         # These need to include:
         # the batch size
@@ -20,35 +21,85 @@ class ImageGenerator:
 
         self.class_dict = {0: 'airplane', 1: 'automobile', 2: 'bird', 3: 'cat', 4: 'deer', 5: 'dog', 6: 'frog',
                            7: 'horse', 8: 'ship', 9: 'truck'}
-        #TODO: implement constructor
+        self.file_path = file_path
+        self.label_path = label_path
+        self.batch_size = batch_size
+        self.image_size = image_size 
+        self.rotation = rotation
+        self.mirroring = mirroring
+        self.shuffle = shuffle
+        self.current_epoch_num = 0
+        self.current_index = None
+        
+        # Load labels
+        with open(self.label_path, 'r') as label_file:
+            self.labels_dict = json.load(label_file)
+
+        # Load image file names
+        self.image_files = os.listdir(self.file_path)
+        self.epoch_images = self.image_files.copy()
+
+        # Shuffle if required
+        if self.shuffle:
+            np.random.shuffle(self.epoch_images)
+        
 
     def next(self):
-        # This function creates a batch of images and corresponding labels and returns them.
-        # In this context a "batch" of images just means a bunch, say 10 images that are forwarded at once.
-        # Note that your amount of total data might not be divisible without remainder with the batch_size.
-        # Think about how to handle such cases
-        #TODO: implement next method
-        pass
-        #return images, labels
+
+        for _ in range(self.batch_size):
+            if self.current_index >= len(self.epoch_images):
+                # End of epoch: reset index and shuffle -> no batch is shown to the network twice within one epoch
+                self.current_index = 0
+                self.current_epoch_num += 1
+                if self.shuffle:
+                    np.random.shuffle(self.epoch_images)
+
+            image_file = self.epoch_images[self.current_index]
+            self.current_index += 1
+
+            image_path = os.path.join(self.file_path, image_file)
+            image = scipy.misc.imread(image_path) 
+            image = scipy.misc.imresize(image, self.image_size) #resizing to desired image size
+            label = self.labels_dict[image_file]
+
+            images.append(image)
+            labels.append(label)
+
+        images = np.array(images)
+        labels = np.array(labels)
+
+        return images, labels
+
 
     def augment(self,img):
         # this function takes a single image as an input and performs a random transformation
         # (mirroring and/or rotation) on it and outputs the transformed image
-        #TODO: implement augmentation function
+        if self.mirroring and random.choice([True, False]):
+            image = np.fliplr(image)  # Randomly mirror the image
+        if self.rotation:
+            angle = random.choice([0, 90, 180, 270])  # Randomly choose rotation angle
+            image = np.rot90(image, k=angle // 90)  # Rotate the image
 
         return img
 
     def current_epoch(self):
         # return the current epoch number
-        return 0
+        return self.current_epoch_num
 
     def class_name(self, x):
         # This function returns the class name for a specific input
-        #TODO: implement class name function
-        return
+        for key,value in self.labels_dict.items():
+            if value == x: 
+                return key
+        return None
+    
+    
     def show(self):
         # In order to verify that the generator creates batches as required, this functions calls next to get a
         # batch of images and labels and visualizes it.
-        #TODO: implement show method
-        pass
-
+        images,labels = self.next()
+        for i in range(len(images)):
+            plt.imshow(images[i])
+            plt.title(f"Label:{labels[i]}")
+            plt.axis("off")
+            plt.show()
